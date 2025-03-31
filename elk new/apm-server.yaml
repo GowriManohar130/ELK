@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apm-server-config
+  namespace: monitoring
+data:
+  apm-server.yml: |
+    apm-server:
+      host: "0.0.0.0:8200"
+      rum:
+        enabled: true
+    output.elasticsearch:
+      hosts: ["http://192.168.88.122:9200"]
+      # username: "elastic"
+      # password: "infy@123"
+      # ssl:
+      #   enabled: true
+      #   certificate_authorities: ["/usr/share/apm-server/config/certs/ca.crt"]
+      #   verification_mode: "certificate"
+    # apm-server.kibana:
+    #   enabled: true
+    #   host: "http://192.168.88.124:5601"
+    #   username: "elastic"
+    #   password: "infy@123"
+    queue.mem:
+      events: 128096
+      flush.min_events: 64048
+      flush.timeout: 1s  
+      
+---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: apm-server
+#   namespace: monitoring
+# spec:
+#   selector:
+#     app: apm-server
+#   ports:
+#     - protocol: TCP
+#       port: 8200
+#       targetPort: 8200
+#   type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apm-server
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apm-server
+  template:
+    metadata:
+      labels:
+        app: apm-server
+    spec:
+      containers:
+        - name: apm-server
+          image: elastic/apm-server:7.17.22
+          ports:
+            - containerPort: 8200
+          env:
+            - name: ELASTICSEARCH_USERNAME
+              value: elastic
+            - name: ELASTICSEARCH_PASSWORD
+              value: infy@123
+          volumeMounts:
+            - name: apm-server-config
+              mountPath: /usr/share/apm-server/apm-server.yml
+              subPath: apm-server.yml
+              readOnly: true
+            # - name: ca-crt
+            #   mountPath: /usr/share/apm-server/config/certs/ca.crt
+            #   subPath: ca.crt
+            #   readOnly: true
+      volumes:
+        - name: apm-server-config
+          configMap:
+            name: apm-server-config
+        # - name: ca-crt
+        #   secret:
+        #     secretName: ca-crt

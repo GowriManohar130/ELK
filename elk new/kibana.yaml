@@ -1,0 +1,86 @@
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: kibana
+#   namespace: monitoring
+#   labels:
+#     app: kibana
+# spec:
+#   ports:
+#   - port: 5601
+#     name: http
+#   selector:
+#     app: kibana
+#   type: LoadBalancer  
+#   externalIPs:
+#   - 192.168.88.124  
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+        - name: kibana
+          image: docker.elastic.co/kibana/kibana:8.4.0
+          env:
+          # - name: ELASTICSEARCH_URL
+          #   value: "http://192.168.88.122:9200"
+          # - name: ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES
+          #   value: "/usr/share/kibana/config/certs/ca.crt"
+          # - name: ELASTICSEARCH_SSL_VERIFICATIONMODE
+          #   value: "certificate"  
+          # - name: ELASTICSEARCH_USERNAME
+          #   value: "kibana_system"  # Replace with your Elasticsearch username
+          # - name: ELASTICSEARCH_PASSWORD
+          #   value: "infy@123"  
+          ports:
+          - containerPort: 5601
+          volumeMounts:
+          # - name: ca-crt
+          #   mountPath: /usr/share/kibana/config/certs/ca.crt
+          #   subPath: ca.crt
+          - name: kibana-config
+            mountPath: /usr/share/kibana/config/kibana.yml
+            subPath: kibana.yml
+      volumes:
+      - name: ca-crt
+        secret:
+          secretName: ca-crt
+      - name: kibana-config
+        configMap:
+          name: kibana-settings
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-settings
+  namespace: monitoring
+  labels:
+    app: kibana
+data:
+  kibana.yml: |
+    server.name: kibana
+    server.host: "0.0.0.0"
+    elasticsearch.hosts: ["http://192.168.88.122:9200"]
+    # elasticsearch.ssl.certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
+    # elasticsearch.ssl.verificationMode: certificate
+    # monitoring.ui.container.elasticsearch.enabled: true
+    # elasticsearch.username: "kibana_system"
+    # elasticsearch.password: "infy@123"
+    # xpack.security.encryptionKey: "a_very_long_and_secure_random_string_at_least_32_chars"
+    # xpack.encryptedSavedObjects.encryptionKey: "another_very_long_and_secure_random_string_at_least_32_chars"
+    # xpack.reporting.encryptionKey: "yet_another_very_long_and_secure_random_string_at_least_32_chars"
+    # xpack.reporting.kibanaServer.hostname: "localhost"
+
+

@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: heartbeat-config
+  namespace: elk
+data:
+  heartbeat.yml: |
+    heartbeat.monitors:
+    - type: http
+      schedule: '@every 10s'
+      urls: ["https://qa.workshine.com:8443"]
+      check.request:
+        method: GET
+      check.response:
+        status: 200  
+
+    - type: tcp
+      schedule: '@every 10s'
+      hosts: ["api-gateway-service.qa.svc.cluster.local:7097"] 
+
+    output.elasticsearch:
+      hosts: ["http://192.168.88.122:9200"]
+      # username: "elastic"
+      # password: "infy@123"
+      # ssl:
+      #   enabled: true
+      #   certificate_authorities: ["/usr/share/heartbeat/config/certs/ca.crt"]
+      #   verification_mode: "certificate"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heartbeat
+  namespace: elk
+  labels:
+    app: heartbeat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: heartbeat
+  template:
+    metadata:
+      labels:
+        app: heartbeat
+    spec:
+      containers:
+      - name: heartbeat
+        image: docker.elastic.co/beats/heartbeat:8.4.0
+        volumeMounts:
+        - name: config
+          mountPath: /usr/share/heartbeat/heartbeat.yml
+          subPath: heartbeat.yml
+        # - name: ca-crt
+        #   mountPath: /usr/share/heartbeat/config/certs/ca.crt
+        #   subPath: ca.crt
+        # env:
+      volumes:
+      - name: config
+        configMap:
+          name: heartbeat-config
+      # - name: ca-crt
+      #   secret:
+      #     secretName: ca-crt
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: heartbeat
+  namespace: elk
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: heartbeat
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  - services
+  - endpoints
+  - nodes
+  verbs:
+  - get
+  - watch
+  - list
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: heartbeat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: heartbeat
+subjects:
+- kind: ServiceAccount
+  name: heartbeat
+  namespace: elk
+

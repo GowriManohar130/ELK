@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  namespace: elk
+data:
+  filebeat.yml: |
+    filebeat.inputs:
+    - type: container
+      paths:
+        - /var/log/containers/*.log  # Adjust the paths as per your application's log paths
+
+    output.logstash:
+      hosts: ["logstash:5044"]
+
+    # Optional additional Filebeat configuration
+    # filebeat.config.modules:
+    #   path: ${path.config}/modules.d/*.yml
+    #   reload.enabled: false
+
+    # Filebeat logging configuration
+    logging.level: info
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: filebeat
+  namespace: elk
+spec:
+  selector:
+    matchLabels:
+      app: filebeat
+  template:
+    metadata:
+      labels:
+        app: filebeat
+    spec:
+      containers:
+      - name: filebeat
+        image: docker.elastic.co/beats/filebeat:8.4.0
+        args: [
+          "-c", "/etc/filebeat.yml",
+          "-e",
+        ]
+        securityContext:
+          runAsUser: 0  # Set the user to root for access to log files
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/filebeat.yml
+          subPath: filebeat.yml
+          readOnly: true
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: dockersock
+          mountPath: /var/run/docker.sock
+        - name: data
+          mountPath: /usr/share/filebeat/data
+      volumes:
+      - name: config-volume
+        configMap:
+          name: filebeat-config
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: dockersock
+        hostPath:
+          path: /var/run/docker.sock
+      - name: data
+        emptyDir: {}

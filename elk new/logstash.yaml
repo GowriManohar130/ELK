@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: monitoring
+  labels:
+    app: logstash
+data:
+  logstash.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+    }
+    output {
+      elasticsearch {
+        hosts => ["http://192.168.88.122:9200"]
+        index => "%{[@metadata][beat]}-%{+YYYY.MM.dd}"
+        # user => "elastic"
+        # password => "infy@123"
+        # ssl => true
+        # ssl_certificate_verification => true
+        # cacert => "/usr/share/logstash/config/ca.crt"
+      }
+    }
+---
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: logstash-settings
+#   namespace: monitoring
+#   labels:
+#     app: logstash
+# data:
+#   logstash.yml: |
+#     xpack.monitoring.enabled: true
+#     xpack.monitoring.elasticsearch.hosts: ["https://192.168.88.122:9200"]
+#     xpack.monitoring.elasticsearch.username: "elastic"
+#     xpack.monitoring.elasticsearch.password: "infy@123"
+#     xpack.monitoring.elasticsearch.ssl.certificate_authority: "/usr/share/logstash/config/ca.crt"
+#     xpack.monitoring.elasticsearch.ssl.verification_mode: "certificate"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      containers:
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:8.4.0
+        ports:
+        - containerPort: 5044
+        # env:
+        volumeMounts:
+        - name: config-volume
+          mountPath: /usr/share/logstash/pipeline/logstash.conf
+          subPath: logstash.conf
+        # - name: logstash-settings
+        #   mountPath: /usr/share/logstash/config/logstash.yml
+        #   subPath: logstash.yml  
+        # - name: ca-crt   
+        #   mountPath: /usr/share/logstash/config/ca.crt
+        #   subPath: ca.crt
+      volumes:
+      - name: config-volume
+        configMap:
+          name: logstash-config
+      # - name: logstash-settings
+      #   configMap:
+      #     name: logstash-settings  
+      # - name: ca-crt
+      #   secret:
+      #     secretName: ca-crt
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: monitoring
+  labels:
+    app: logstash
+spec:
+  ports:
+  - port: 5044
+    name: beats
+  selector:
+    app: logstash
+  type: LoadBalancer 
+# ---
